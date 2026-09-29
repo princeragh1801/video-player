@@ -1,0 +1,36 @@
+{
+  "name": "video-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "worker": "node src/worker.js",
+    "dev": "node --watch --env-file-if-exists=.env src/index.js",
+    "dev:worker": "node --watch --env-file-if-exists=.env src/worker.js",
+    "migrate": "node --env-file-if-exists=.env src/migrate.js",
+    "seed": "node --env-file-if-exists=.env src/seed.js",
+    "setup:bucket": "node --env-file-if-exists=.env src/setupBucket.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1142.0",
+    "@aws-sdk/s3-request-presigner": "^3.1142.0",
+    "bullmq": "^6.3.10",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "rate-limit-redis": "^6.0.1",
+    "zod": "^4.6.5"
+  }
+}

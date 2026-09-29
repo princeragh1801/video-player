@@ -1,0 +1,70 @@
+# Fully local stack: Postgres, Redis, S3-compatible object storage (SeaweedFS), API, FFmpeg worker
+# and web. `docker compose up -d --build` is all you need. To use Cloudflare R2 (or any S3) instead,
+# set the S3_* variables in .env and drop STORAGE_AUTO_SETUP (see README).
+x-server-env: &server-env
+  NODE_ENV: ${NODE_ENV:-development}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false} # false only for local http; must be true behind HTTPS
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+  DATABASE_URL: postgres://video:video@postgres:5432/video
+  REDIS_URL: redis://redis:6379
+  # Dev defaults are refused when NODE_ENV=production.
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-only-access-secret-0123456789abcdef}
+  PLAYBACK_TOKEN_SECRET: ${PLAYBACK_TOKEN_SECRET:-dev-only-playback-secret-0123456789abcdef}
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://storage:8333}
+  S3_PRESIGN_ENDPOINT: ${S3_PRESIGN_ENDPOINT:-http://localhost:8333} # what the browser uploads to
+  S3_REGION: ${S3_REGION:-auto}
+  S3_BUCKET: ${S3_BUCKET:-videos}
+  S3_KEY_PREFIX: ${S3_KEY_PREFIX:-}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-devaccesskey}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-devsecretkey}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  STORAGE_AUTO_SETUP: ${STORAGE_AUTO_SETUP:-true}
+  SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+  MAX_CONCURRENT_STREAMS: ${MAX_CONCURRENT_STREAMS:-2}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: video, POSTGRES_PASSWORD: video, POSTGRES_DB: video }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U video"], interval: 3s, retries: 20 }
+
+  redis:
+    image: redis:7-alpine
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, retries: 20 }
+
+  # Local S3-compatible object storage. Authenticated access only (keys in server/local-s3.json) —
+  # the same private posture as an R2 bucket. Data persists in the s3data volume.
+  storage:
+    image: chrislusf/seaweedfs:latest
+    command: server -s3 -s3.port=8333 -s3.config=/etc/s3.json -dir=/data
+    ports: ["8333:8333"]
+    volumes: [s3data:/data, ./server/local-s3.json:/etc/s3.json:ro]
+    healthcheck: { test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"], interval: 3s, retries: 40 }
+
+  api:
+    build: ./server
+    environment: *server-env
+    ports: ["4000:4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      storage: { condition: service_healthy }
+
+  worker:
+    build: ./server
+    command: ["node", "src/worker.js"]
+    environment: *server-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_started } # api runs migrations
+
+  web:
+    build: ./web
+    ports: ["8080:80"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  s3data:
