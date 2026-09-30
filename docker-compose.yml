@@ -24,18 +24,21 @@ x-server-env: &server-env
 
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:17-alpine
     environment: { POSTGRES_USER: video, POSTGRES_PASSWORD: video, POSTGRES_DB: video }
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U video"], interval: 3s, retries: 20 }
 
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, retries: 20 }
 
   # Local S3-compatible object storage. Authenticated access only (keys in server/local-s3.json) —
   # the same private posture as an R2 bucket. Data persists in the s3data volume.
   storage:
+    restart: unless-stopped
     image: chrislusf/seaweedfs:latest
     command: server -s3 -s3.port=8333 -s3.config=/etc/s3.json -dir=/data
     ports: ["8333:8333"]
@@ -43,6 +46,7 @@ services:
     healthcheck: { test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"], interval: 3s, retries: 40 }
 
   api:
+    restart: unless-stopped
     build: ./server
     environment: *server-env
     ports: ["4000:4000"]
@@ -52,6 +56,7 @@ services:
       storage: { condition: service_healthy }
 
   worker:
+    restart: unless-stopped
     build: ./server
     command: ["node", "src/worker.js"]
     environment: *server-env
@@ -61,6 +66,7 @@ services:
       api: { condition: service_started } # api runs migrations
 
   web:
+    restart: unless-stopped
     build: ./web
     ports: ["8080:80"]
     depends_on: [api]
