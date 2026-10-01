@@ -102,7 +102,8 @@ export function VideoPlayer({ videoId, title }) {
     let networkRetries = 0;
 
     hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-      setLevels(data.levels.map((l, index) => ({ index, height: l.height, bitrate: l.bitrate })));
+      // Label by the short side so a portrait 1080x1920 rendition reads as 1080p, not 1920p.
+      setLevels(data.levels.map((l, index) => ({ index, height: Math.min(l.width || l.height, l.height), bitrate: l.bitrate })));
       if (resume.current.time) video.currentTime = resume.current.time;
       if (resume.current.playing) video.play().catch(() => {});
     });
@@ -307,7 +308,7 @@ export function VideoPlayer({ videoId, title }) {
         <h2 className="truncate text-sm font-medium text-white/90 drop-shadow">{title}</h2>
         {activeHeight && (
           <Badge variant="outline" className="shrink-0 border-white/20 bg-black/30 font-mono text-[10px] text-white/80 backdrop-blur">
-            {activeHeight >= 720 ? 'HD ' : ''}
+            {activeHeight >= 2160 ? '4K ' : activeHeight >= 720 ? 'HD ' : ''}
             {activeHeight}p
           </Badge>
         )}
@@ -467,7 +468,7 @@ export function VideoPlayer({ videoId, title }) {
                           key={l.index}
                           value={String(l.index)}
                           label={`${l.height}p`}
-                          hint={l.height >= 720 ? 'HD' : `${Math.round(l.bitrate / 1000)} kbps`}
+                          hint={l.height >= 2160 ? '4K' : l.height >= 1440 ? 'QHD' : l.height >= 720 ? 'HD' : `${Math.round(l.bitrate / 1000)} kbps`}
                         />
                       ))}
                   </DropdownMenuRadioGroup>
